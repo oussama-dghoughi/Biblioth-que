@@ -91,6 +91,38 @@ export const bookService = {
     const response = await apiClient.put(`/books/${book.id}`, apiData);
     return mapBookFromAPI(response.data);
   },
+
+  // Récupérer les notes d'un livre
+  getNotesByBookId: async (bookId) => {
+    try {
+      const response = await apiClient.get(`/books/${bookId}/notes`);
+      return response.data;
+    } catch (error) {
+      console.error('Error in getNotesByBookId:', error);
+      throw error;
+    }
+  },
+
+  // Ajouter une note à un livre
+  addNoteToBook: async (bookId, noteContent) => {
+    try {
+      const response = await apiClient.post(`/books/${bookId}/notes`, {
+        content: noteContent,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error in addNoteToBook:', error);
+      throw error;
+    }
+  },
+
+  // Toggle favoris
+  toggleFavorite: async (book) => {
+    const updatedBook = { ...book, favorite: !book.favorite };
+    const apiData = mapBookToAPI(updatedBook);
+    const response = await apiClient.put(`/books/${book.id}`, apiData);
+    return mapBookFromAPI(response.data);
+  },
 };
 
 export default bookService;

@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  TextInput,
+  Modal,
 } from 'react-native';
 import bookService from '../../services/bookService';
 import theme from '../../styles/theme';
@@ -15,23 +17,41 @@ import Button from '../../components/Button';
 const BookDetailsScreen = ({ navigation, route }) => {
   const { book: initialBook } = route.params;
   
-  // Helper pour s'assurer que lu est toujours un boolean
+  // Helper pour s'assurer que lu et favorite sont toujours des booleans
   const normalizeBook = (book) => {
     if (!book) return book;
     return {
       ...book,
       lu: book.lu === true || book.lu === 'true' || book.lu === 1 || book.lu === '1',
+      favorite: book.favorite === true || book.favorite === 'true' || book.favorite === 1 || book.favorite === '1',
     };
   };
 
   const [book, setBook] = useState(normalizeBook(initialBook));
   const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
 
   useEffect(() => {
     navigation.setOptions({
       title: book.nom,
     });
+    loadNotes();
   }, [book.nom, navigation]);
+
+  const loadNotes = async () => {
+    try {
+      setLoadingNotes(true);
+      const notesData = await bookService.getNotesByBookId(book.id);
+      setNotes(notesData || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des notes:', error);
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
 
   const toggleReadStatus = async () => {
     setLoading(true);
@@ -45,6 +65,23 @@ const BookDetailsScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
       Alert.alert('Erreur', 'Impossible de modifier le statut');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    setLoading(true);
+    try {
+      const updatedBook = await bookService.toggleFavorite(book);
+      setBook(updatedBook);
+      Alert.alert(
+        'Succès',
+        updatedBook.favorite ? 'Livre ajouté aux favoris' : 'Livre retiré des favoris'
+      );
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      Alert.alert('Erreur', 'Impossible de modifier les favoris');
     } finally {
       setLoading(false);
     }
@@ -74,11 +111,48 @@ const BookDetailsScreen = ({ navigation, route }) => {
     );
   };
 
+  const handleAddNote = async () => {
+    if (!noteContent.trim()) {
+      Alert.alert('Erreur', 'La note ne peut pas être vide');
+      return;
+    }
+
+    try {
+      await bookService.addNoteToBook(book.id, noteContent);
+      Alert.alert('Succès', 'Note ajoutée avec succès');
+      setShowAddNoteModal(false);
+      setNoteContent('');
+      loadNotes();
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout de la note:', error);
+      Alert.alert('Erreur', 'Impossible d\'ajouter la note');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
           <StatusBadge isRead={book.lu} />
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={toggleFavorite}
+            disabled={loading}
+          >
+            <Text style={styles.favoriteIcon}>{book.favorite ? '❤️' : '🤍'}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -104,6 +178,32 @@ const BookDetailsScreen = ({ navigation, route }) => {
             <Text style={styles.value}>{book.annee}</Text>
           </View>
         )}
+
+        {/* Section Notes */}
+        <View style={styles.notesSection}>
+          <View style={styles.notesHeader}>
+            <Text style={styles.notesTitle}>Notes</Text>
+            <TouchableOpacity
+              style={styles.addNoteButton}
+              onPress={() => setShowAddNoteModal(true)}
+            >
+              <Text style={styles.addNoteButtonText}>+ Ajouter</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingNotes ? (
+            <Text style={styles.emptyText}>Chargement des notes...</Text>
+          ) : notes.length === 0 ? (
+            <Text style={styles.emptyText}>Aucune note</Text>
+          ) : (
+            notes.map((note, index) => (
+              <View key={index} style={styles.noteItem}>
+                <Text style={styles.noteContent}>{note.content}</Text>
+                <Text style={styles.noteDate}>{formatDate(note.createdAt)}</Text>
+              </View>
+            ))
+          )}
+        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -133,6 +233,46 @@ const BookDetailsScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modal pour ajouter une note */}
+      <Modal
+        visible={showAddNoteModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddNoteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Ajouter une note</Text>
+            <TextInput
+              style={styles.noteTextInput}
+              multiline
+              numberOfLines={6}
+              placeholder="Écrivez votre note ici..."
+              value={noteContent}
+              onChangeText={setNoteContent}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAddNoteModal(false);
+                  setNoteContent('');
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSubmit]}
+                onPress={handleAddNote}
+              >
+                <Text style={styles.modalButtonTextSubmit}>Ajouter</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -147,6 +287,15 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 30, // theme.spacing.xl
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  favoriteButton: {
+    padding: 5,
+  },
+  favoriteIcon: {
+    fontSize: 30,
   },
   section: {
     marginBottom: 25,
@@ -210,6 +359,112 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: '#f44336', // theme.colors.danger
+  },
+  notesSection: {
+    marginTop: 30,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  notesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  notesTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  addNoteButton: {
+    backgroundColor: '#6200ee',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  addNoteButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  noteItem: {
+    backgroundColor: '#f9f9f9',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  noteContent: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+  },
+  noteDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#999',
+    paddingVertical: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 25,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+  },
+  noteTextInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 16,
+    minHeight: 120,
+    backgroundColor: '#f9f9f9',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  modalButtonSubmit: {
+    backgroundColor: '#6200ee',
+  },
+  modalButtonTextCancel: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  modalButtonTextSubmit: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 

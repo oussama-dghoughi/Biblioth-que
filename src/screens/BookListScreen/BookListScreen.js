@@ -73,6 +73,16 @@ const BookListScreen = ({ navigation }) => {
     }
   };
 
+  const toggleFavorite = async (book) => {
+    try {
+      await bookService.toggleFavorite(book);
+      loadBooks();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour des favoris:', error);
+      Alert.alert('Erreur', 'Impossible de modifier les favoris');
+    }
+  };
+
   const renderBookItem = ({ item }) => (
     <TouchableOpacity
       key={item.id}
@@ -90,6 +100,12 @@ const BookListScreen = ({ navigation }) => {
         )}
       </View>
       <View style={styles.bookActions}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => toggleFavorite(item)}
+        >
+          <Text style={styles.iconText}>{item.favorite ? '❤️' : '🤍'}</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.toggleButton}
           onPress={() => toggleReadStatus(item)}

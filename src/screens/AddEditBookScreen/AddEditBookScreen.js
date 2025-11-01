@@ -17,7 +17,7 @@ const AddEditBookScreen = ({ navigation, route }) => {
   const book = route?.params?.book;
   const isEdit = !!book;
 
-  // Helper pour s'assurer que lu est toujours un boolean
+  // Helper pour s'assurer que lu et favorite sont toujours des booleans
   const normalizeLu = (value) => {
     return value === true || value === 'true' || value === 1 || value === '1';
   };
@@ -27,6 +27,7 @@ const AddEditBookScreen = ({ navigation, route }) => {
   const [editeur, setEditeur] = useState(book?.editeur || '');
   const [annee, setAnnee] = useState(book?.annee ? String(book.annee) : '');
   const [lu, setLu] = useState(normalizeLu(book?.lu));
+  const [favorite, setFavorite] = useState(normalizeLu(book?.favorite));
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -60,6 +61,7 @@ const AddEditBookScreen = ({ navigation, route }) => {
         editeur: editeur.trim(),
         annee: annee ? parseInt(annee) : null,
         lu: lu,
+        favorite: favorite,
       };
 
       if (isEdit) {
@@ -120,6 +122,12 @@ const AddEditBookScreen = ({ navigation, route }) => {
         checked={lu}
         onPress={() => setLu(!lu)}
         label="Marquer comme lu"
+      />
+
+      <Checkbox
+        checked={favorite}
+        onPress={() => setFavorite(!favorite)}
+        label="Ajouter aux favoris"
       />
 
       <Button
