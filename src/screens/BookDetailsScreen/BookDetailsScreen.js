@@ -12,6 +12,7 @@ import {
   Image,
 } from 'react-native';
 import bookService from '../../services/bookService';
+import openLibraryService from '../../services/openLibraryService';
 import theme from '../../styles/theme';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
@@ -37,12 +38,15 @@ const BookDetailsScreen = ({ navigation, route }) => {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [noteContent, setNoteContent] = useState('');
+  const [editionsCount, setEditionsCount] = useState(null);
+  const [loadingEditions, setLoadingEditions] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({
       title: book.nom,
     });
     loadNotes();
+    loadEditionsCount();
     // Forcer le scroll en haut lors du chargement
     setTimeout(() => {
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
@@ -67,6 +71,18 @@ const BookDetailsScreen = ({ navigation, route }) => {
       console.error('Erreur lors du chargement des notes:', error);
     } finally {
       setLoadingNotes(false);
+    }
+  };
+
+  const loadEditionsCount = async () => {
+    try {
+      setLoadingEditions(true);
+      const count = await openLibraryService.getEditionsCount(book.nom);
+      setEditionsCount(count);
+    } catch (error) {
+      console.error('Erreur lors du chargement du nombre d\'éditions:', error);
+    } finally {
+      setLoadingEditions(false);
     }
   };
 
@@ -228,6 +244,14 @@ const BookDetailsScreen = ({ navigation, route }) => {
                 onRatingPress={handleRatingPress}
                 disabled={false}
               />
+            </View>
+          ) : null}
+
+          {/* Section OpenLibrary */}
+          {editionsCount !== null && editionsCount > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>OpenLibrary</Text>
+              <Text style={styles.value}>Nombre d'éditions référencées : {editionsCount}</Text>
             </View>
           ) : null}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,14 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import bookService from '../../services/bookService';
+import localStorage from '../../services/localStorage';
+import { ThemeContext } from '../../contexts/ThemeContext';
 import theme from '../../styles/theme';
 import StatusBadge from '../../components/StatusBadge';
 import Rating from '../../components/Rating';
 
 const BookListScreen = ({ navigation }) => {
+  const { theme: currentTheme, toggleTheme } = useContext(ThemeContext);
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,11 +40,21 @@ const BookListScreen = ({ navigation }) => {
   const loadBooks = async () => {
     try {
       setLoading(true);
+      // Essayer de charger depuis l'API
       const data = await bookService.getAllBooks();
       setBooks(data);
+      // Sauvegarder en local pour le mode offline
+      await localStorage.saveBooks(data);
     } catch (error) {
-      console.error('Erreur lors du chargement des livres:', error);
-      Alert.alert('Erreur', 'Impossible de charger les livres');
+      console.error('Erreur lors du chargement des livres depuis l\'API:', error);
+      // Si l'API échoue, charger depuis le stockage local
+      const cachedBooks = await localStorage.loadBooks();
+      if (cachedBooks) {
+        setBooks(cachedBooks);
+        console.log('Chargement en mode offline depuis le cache');
+      } else {
+        Alert.alert('Erreur', 'Impossible de charger les livres');
+      }
     } finally {
       setLoading(false);
     }
@@ -238,15 +251,29 @@ const BookListScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={[styles.container, Platform.OS === 'web' && { height: '100vh' }]}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: currentTheme.colors.background }, Platform.OS === 'web' && { height: '100vh' }]}>
+      <View style={[styles.header, { backgroundColor: currentTheme.colors.primary }]}>
         <Text style={styles.headerTitle}>Ma Bibliothèque</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('AddEditBook')}
-        >
-          <Text style={styles.addButtonText}>+ Ajouter</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={styles.themeButton}
+            onPress={toggleTheme}
+          >
+            <MaterialIcons name={currentTheme.mode === 'dark' ? 'light-mode' : 'dark-mode'} size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statsButton}
+            onPress={() => navigation.navigate('Stats')}
+          >
+            <MaterialIcons name="bar-chart" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('AddEditBook')}
+          >
+            <Text style={styles.addButtonText}>+ Ajouter</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Barre de recherche */}
@@ -345,6 +372,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff', // theme.colors.text.inverse
+  },
+  themeButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  statsButton: {
+    padding: 8,
+    marginRight: 8,
   },
   addButton: {
     backgroundColor: '#03dac5', // theme.colors.secondary

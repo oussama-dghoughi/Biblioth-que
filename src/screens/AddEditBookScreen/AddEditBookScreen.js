@@ -123,7 +123,10 @@ const AddEditBookScreen = ({ navigation, route }) => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={Platform.OS === 'web' ? { height: 500, overflow: 'scroll' } : styles.container} 
+      contentContainerStyle={styles.content}
+    >
       {/* Section Image de couverture */}
       <View style={styles.coverSection}>
         <Text style={styles.coverLabel}>Image de couverture</Text>
