@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,18 @@ import {
   StyleSheet,
   TextInput,
   Modal,
+  Platform,
+  Image,
 } from 'react-native';
 import bookService from '../../services/bookService';
 import theme from '../../styles/theme';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
+import Rating from '../../components/Rating';
 
 const BookDetailsScreen = ({ navigation, route }) => {
   const { book: initialBook } = route.params;
+  const scrollViewRef = useRef(null);
   
   // Helper pour s'assurer que lu et favorite sont toujours des booleans
   const normalizeBook = (book) => {
@@ -39,6 +43,19 @@ const BookDetailsScreen = ({ navigation, route }) => {
       title: book.nom,
     });
     loadNotes();
+    // Forcer le scroll en haut lors du chargement
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }, 100);
+
+    // Ajouter un listener pour forcer le scroll quand l'écran est focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }, 100);
+    });
+
+    return unsubscribe;
   }, [book.nom, navigation]);
 
   const loadNotes = async () => {
@@ -82,6 +99,19 @@ const BookDetailsScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
       Alert.alert('Erreur', 'Impossible de modifier les favoris');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRatingPress = async (newRating) => {
+    setLoading(true);
+    try {
+      const updatedBook = await bookService.updateBook(book.id, { ...book, rating: newRating });
+      setBook(updatedBook);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      Alert.alert('Erreur', 'Impossible de modifier la note');
     } finally {
       setLoading(false);
     }
@@ -142,97 +172,111 @@ const BookDetailsScreen = ({ navigation, route }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <StatusBadge isRead={book.lu} />
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            onPress={toggleFavorite}
-            disabled={loading}
-          >
-            <Text style={styles.favoriteIcon}>{book.favorite ? '❤️' : '🤍'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Titre</Text>
-          <Text style={styles.value}>{book.nom}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Auteur</Text>
-          <Text style={styles.value}>{book.auteur}</Text>
-        </View>
-
-        {book.editeur && (
-          <View style={styles.section}>
-            <Text style={styles.label}>Éditeur</Text>
-            <Text style={styles.value}>{book.editeur}</Text>
-          </View>
-        )}
-
-        {book.annee && (
-          <View style={styles.section}>
-            <Text style={styles.label}>Année de publication</Text>
-            <Text style={styles.value}>{book.annee}</Text>
-          </View>
-        )}
-
-        {/* Section Notes */}
-        <View style={styles.notesSection}>
-          <View style={styles.notesHeader}>
-            <Text style={styles.notesTitle}>Notes</Text>
+    <>
+      <ScrollView 
+        ref={scrollViewRef} 
+        style={Platform.OS === 'web' ? { height: 500, overflow: 'scroll' } : styles.container}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <StatusBadge isRead={book.lu} />
             <TouchableOpacity
-              style={styles.addNoteButton}
-              onPress={() => setShowAddNoteModal(true)}
+              style={styles.favoriteButton}
+              onPress={toggleFavorite}
+              disabled={loading}
             >
-              <Text style={styles.addNoteButtonText}>+ Ajouter</Text>
+              <Text style={styles.favoriteIcon}>{book.favorite ? '❤️' : '🤍'}</Text>
             </TouchableOpacity>
           </View>
 
-          {loadingNotes ? (
-            <Text style={styles.emptyText}>Chargement des notes...</Text>
-          ) : notes.length === 0 ? (
-            <Text style={styles.emptyText}>Aucune note</Text>
-          ) : (
-            notes.map((note, index) => (
-              <View key={index} style={styles.noteItem}>
-                <Text style={styles.noteContent}>{note.content}</Text>
-                <Text style={styles.noteDate}>{formatDate(note.createdAt)}</Text>
-              </View>
-            ))
-          )}
+          {/* Image de couverture */}
+          {book.cover ? (
+            <View style={styles.coverSection}>
+              <Image source={{ uri: book.cover }} style={styles.coverImage} />
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Titre</Text>
+            <Text style={styles.value}>{book.nom}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Auteur</Text>
+            <Text style={styles.value}>{book.auteur}</Text>
+          </View>
+
+          {book.editeur ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Éditeur</Text>
+              <Text style={styles.value}>{book.editeur}</Text>
+            </View>
+          ) : null}
+
+          {book.annee ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Année de publication</Text>
+              <Text style={styles.value}>{book.annee}</Text>
+            </View>
+          ) : null}
+
+          {book.rating > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Note</Text>
+              <Rating
+                rating={book.rating}
+                onRatingPress={handleRatingPress}
+                disabled={false}
+              />
+            </View>
+          ) : null}
+
+          {/* Section Notes */}
+          <View style={styles.notesSection}>
+            <View style={styles.notesHeader}>
+              <Text style={styles.notesTitle}>Notes</Text>
+              <TouchableOpacity
+                style={styles.addNoteButton}
+                onPress={() => setShowAddNoteModal(true)}
+              >
+                <Text style={styles.addNoteButtonText}>+ Ajouter</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingNotes ? (
+              <Text style={styles.emptyText}>Chargement des notes...</Text>
+            ) : notes.length === 0 ? (
+              <Text style={styles.emptyText}>Aucune note</Text>
+            ) : (
+              notes.map((note, index) => (
+                <View key={index} style={styles.noteItem}>
+                  <Text style={styles.noteContent}>{note.content}</Text>
+                  <Text style={styles.noteDate}>{formatDate(note.createdAt)}</Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.button, book.lu ? styles.readButton : styles.unreadButton, loading ? styles.buttonDisabled : null]}
+              onPress={toggleReadStatus}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {book.lu ? 'Marquer comme non lu' : 'Marquer comme lu'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.editButton]}
+              onPress={() => navigation.navigate('AddEditBook', { book })}
+            >
+              <Text style={styles.buttonText}>✏️ Modifier</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.button, book.lu ? styles.readButton : styles.unreadButton, loading ? styles.buttonDisabled : null]}
-            onPress={toggleReadStatus}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {book.lu ? 'Marquer comme non lu' : 'Marquer comme lu'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.editButton]}
-            onPress={() => navigation.navigate('AddEditBook', { book })}
-          >
-            <Text style={styles.buttonText}>✏️ Modifier</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.deleteButton]}
-            onPress={deleteBook}
-          >
-            <Text style={[styles.buttonText, styles.deleteButtonText]}>
-              🗑️ Supprimer
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </ScrollView>
 
       {/* Modal pour ajouter une note */}
       <Modal
@@ -273,7 +317,7 @@ const BookDetailsScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </>
   );
 };
 
@@ -465,6 +509,16 @@ const styles = StyleSheet.create({
   modalButtonTextSubmit: {
     color: '#fff',
     fontWeight: '600',
+  },
+  coverSection: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  coverImage: {
+    width: 150,
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'cover',
   },
 });
 

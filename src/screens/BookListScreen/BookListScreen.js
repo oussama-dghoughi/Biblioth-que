@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,21 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  TextInput,
+  Image,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import bookService from '../../services/bookService';
 import theme from '../../styles/theme';
 import StatusBadge from '../../components/StatusBadge';
+import Rating from '../../components/Rating';
 
 const BookListScreen = ({ navigation }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all'); // all, read, unread, favorites
+  const [sortBy, setSortBy] = useState('titre'); // titre, auteur, theme
 
   useEffect(() => {
     loadBooks();
@@ -83,21 +90,74 @@ const BookListScreen = ({ navigation }) => {
     }
   };
 
+  // Filtrage et tri des livres
+  const filteredAndSortedBooks = useMemo(() => {
+    let filtered = books;
+
+    // Filtre par recherche
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (book) =>
+          book.nom.toLowerCase().includes(query) ||
+          book.auteur.toLowerCase().includes(query)
+      );
+    }
+
+    // Filtre par type
+    if (filterType === 'read') {
+      filtered = filtered.filter((book) => book.lu);
+    } else if (filterType === 'unread') {
+      filtered = filtered.filter((book) => !book.lu);
+    } else if (filterType === 'favorites') {
+      filtered = filtered.filter((book) => book.favorite);
+    }
+
+    // Tri
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (sortBy === 'titre') {
+        const nomA = (a.nom || '').toLowerCase();
+        const nomB = (b.nom || '').toLowerCase();
+        return nomA.localeCompare(nomB, 'fr');
+      } else if (sortBy === 'auteur') {
+        const auteurA = (a.auteur || '').toLowerCase();
+        const auteurB = (b.auteur || '').toLowerCase();
+        return auteurA.localeCompare(auteurB, 'fr');
+      } else if (sortBy === 'theme') {
+        const themeA = a.theme || '';
+        const themeB = b.theme || '';
+        return themeA.localeCompare(themeB);
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [books, searchQuery, filterType, sortBy]);
+
   const renderBookItem = ({ item }) => (
     <TouchableOpacity
       key={item.id}
       style={styles.bookItem}
       onPress={() => navigation.navigate('BookDetails', { book: item })}
     >
+      {item.cover && (
+        <Image source={{ uri: item.cover }} style={styles.bookCover} />
+      )}
       <View style={styles.bookInfo}>
         <Text style={styles.bookTitle}>{item.nom}</Text>
         <Text style={styles.bookAuthor}>Par {item.auteur}</Text>
-        {item.editeur && (
+        {item.editeur ? (
           <Text style={styles.bookPublisher}>{item.editeur}</Text>
-        )}
-        {item.annee && (
+        ) : null}
+        {item.annee ? (
           <Text style={styles.bookYear}>Année: {item.annee}</Text>
-        )}
+        ) : null}
+        {item.rating > 0 ? (
+          <View style={styles.ratingRow}>
+            <Rating rating={item.rating} disabled={true} size={16} />
+          </View>
+        ) : null}
       </View>
       <View style={styles.bookActions}>
         <TouchableOpacity
@@ -138,11 +198,15 @@ const BookListScreen = ({ navigation }) => {
       );
     }
     
-    if (books.length === 0) {
+    if (filteredAndSortedBooks.length === 0) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>Aucun livre</Text>
-          <Text style={styles.emptySubtext}>Ajoutez votre premier livre !</Text>
+          <Text style={styles.emptyText}>Aucun livre trouvé</Text>
+          <Text style={styles.emptySubtext}>
+            {books.length === 0 
+              ? 'Ajoutez votre premier livre !' 
+              : 'Aucun résultat pour votre recherche'}
+          </Text>
         </View>
       );
     }
@@ -156,7 +220,7 @@ const BookListScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={true}
           nestedScrollEnabled={true}
         >
-          {books.map((item, index) => renderBookItem({ item, index }))}
+          {filteredAndSortedBooks.map((item, index) => renderBookItem({ item, index }))}
         </ScrollView>
       );
     }
@@ -164,7 +228,7 @@ const BookListScreen = ({ navigation }) => {
     // Sur mobile, utiliser FlatList
     return (
       <FlatList
-        data={books}
+        data={filteredAndSortedBooks}
         renderItem={renderBookItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
@@ -184,6 +248,81 @@ const BookListScreen = ({ navigation }) => {
           <Text style={styles.addButtonText}>+ Ajouter</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Barre de recherche */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputWrapper}>
+          <MaterialIcons name="search" size={20} color="#999" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher par titre ou auteur..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <MaterialIcons name="close" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Filtres et tri */}
+      <View style={styles.filtersContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContainer}>
+          <View style={styles.filterChipGroup}>
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
+              onPress={() => setFilterType('all')}
+            >
+              <MaterialIcons name="menu-book" size={16} color={filterType === 'all' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>Tous</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'read' && styles.filterChipActive]}
+              onPress={() => setFilterType('read')}
+            >
+              <MaterialIcons name="check-circle" size={16} color={filterType === 'read' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, filterType === 'read' && styles.filterChipTextActive]}>Lus</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'unread' && styles.filterChipActive]}
+              onPress={() => setFilterType('unread')}
+            >
+              <MaterialIcons name="radio-button-unchecked" size={16} color={filterType === 'unread' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, filterType === 'unread' && styles.filterChipTextActive]}>Non lus</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'favorites' && styles.filterChipActive]}
+              onPress={() => setFilterType('favorites')}
+            >
+              <MaterialIcons name="favorite" size={16} color={filterType === 'favorites' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, filterType === 'favorites' && styles.filterChipTextActive]}>Favoris</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.filterSeparator} />
+          
+          <View style={styles.filterChipGroup}>
+            <TouchableOpacity
+              style={[styles.filterChip, sortBy === 'titre' && styles.filterChipActive]}
+              onPress={() => setSortBy('titre')}
+            >
+              <MaterialIcons name="title" size={16} color={sortBy === 'titre' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, sortBy === 'titre' && styles.filterChipTextActive]}>Titre</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, sortBy === 'auteur' && styles.filterChipActive]}
+              onPress={() => setSortBy('auteur')}
+            >
+              <MaterialIcons name="person" size={16} color={sortBy === 'auteur' ? '#fff' : '#666'} style={styles.chipIcon} />
+              <Text style={[styles.filterChipText, sortBy === 'auteur' && styles.filterChipTextActive]}>Auteur</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+
       {renderBooksList()}
     </View>
   );
@@ -240,6 +379,7 @@ const styles = StyleSheet.create({
     padding: 8, // theme.spacing.sm réduit
   },
   bookItem: {
+    flexDirection: 'row',
     backgroundColor: '#fff', // theme.colors.white
     padding: 10, // theme.spacing.sm (réduit de 15)
     marginBottom: 8, // theme.spacing.sm (réduit de 10)
@@ -250,7 +390,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  bookCover: {
+    width: 60,
+    height: 90,
+    borderRadius: 4,
+    marginRight: 10,
+    resizeMode: 'cover',
+  },
   bookInfo: {
+    flex: 1,
     marginBottom: 6, // theme.spacing.sm (réduit de 10)
   },
   bookTitle: {
@@ -286,6 +434,101 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 16, // réduit de 20
+  },
+  ratingRow: {
+    marginTop: 5,
+  },
+  searchContainer: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  filtersContainer: {
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  filterScrollContainer: {
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  filterChipGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterSeparator: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 8,
+  },
+  filterChip: {
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterChipActive: {
+    backgroundColor: '#6200ee',
+    borderColor: '#6200ee',
+    shadowColor: '#6200ee',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  chipIcon: {
+    marginRight: 4,
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 
