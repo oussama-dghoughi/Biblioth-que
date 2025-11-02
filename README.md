@@ -49,10 +49,15 @@ booklist-app/
 │   │   ├── Input.js
 │   │   ├── Checkbox.js
 │   │   ├── StatusBadge.js
+│   │   ├── Rating.js
 │   │   └── index.js
+│   ├── contexts/                    # Contextes React
+│   │   └── ThemeContext.js          # Gestion du thème clair/sombre
 │   ├── services/                    # Services API
 │   │   ├── api.js                   # Configuration axios
-│   │   └── bookService.js           # Service livres
+│   │   ├── bookService.js           # Service livres
+│   │   ├── localStorage.js          # Stockage local
+│   │   └── openLibraryService.js    # API OpenLibrary
 │   ├── styles/                      # Thème et styles globaux
 │   │   └── theme.js                 # Couleurs, espacements, etc.
 │   ├── navigation/                  # Navigation
@@ -60,7 +65,8 @@ booklist-app/
 │   └── screens/                     # Écrans de l'application
 │       ├── BookListScreen/
 │       ├── AddEditBookScreen/
-│       └── BookDetailsScreen/
+│       ├── BookDetailsScreen/
+│       └── StatsScreen/
 ├── assets/                          # Images et ressources
 ├── package.json
 └── README.md
@@ -89,12 +95,22 @@ booklist-app/
 -  Recherche / filtrage / tri
 -  Couverture photo (expo-image-picker)
 
-###  Challenge
+###  Challenge (Complété )
 
-- ⏳ Mode offline avec AsyncStorage
-- ⏳ Statistiques / Dashboard avec graphiques
-- ⏳ Intégration API OpenLibrary
-- ⏳ Thèmes clair/sombre
+-  Mode offline avec AsyncStorage
+  - Sauvegarde automatique de la liste des livres
+  - Chargement au démarrage même sans réseau
+- statistiques / Dashboard avec graphiques
+  - Cartes colorées avec icônes Material
+  - Graphiques en secteurs (PieChart)
+  - Vue d'ensemble des statistiques
+-  Intégration API OpenLibrary
+  - Recherche du nombre d'éditions référencées
+  - Affichage sur la fiche détaillée du livre
+-  Thème clair/sombre
+  - Basculer entre deux thèmes
+  - Persistance du choix avec AsyncStorage
+  - Icônes Material pour le toggle
 
 ##  Configuration de l'API
 
@@ -132,6 +148,7 @@ L'application utilise un thème centralisé dans `src/styles/theme.js` :
 - `Input` : Champs de saisie avec label
 - `Checkbox` : Cases à cocher
 - `StatusBadge` : Badges de statut (Lu/Non lu)
+- `Rating` : Composant de notation par étoiles
 
 ##  Dépendances principales
 
@@ -142,12 +159,29 @@ L'application utilise un thème centralisé dans `src/styles/theme.js` :
 - `expo-image-picker` - Sélection d'images
 - `react-native-chart-kit` - Graphiques
 - `react-native-svg` - Support SVG
+- `@expo/vector-icons` - Icônes Material
 
-##  Documentation supplémentaire
+##  Fonctionnalités détaillées
 
-- **QUICK_START.md** - Guide de démarrage rapide
-- **SETUP_API.md** - Installation détaillée de l'API
-- **API_COMMUNICATION.md** - Architecture et flux de données
+### Mode Offline
+- La liste des livres est automatiquement sauvegardée localement
+- En cas de perte de connexion, l'app charge les données depuis le cache
+- Synchronisation automatique au retour du réseau
+
+### Thème Clair/Sombre
+- Toggle accessible depuis l'écran principal
+- Persistance du choix entre les sessions
+- Application globale sur tous les écrans
+
+### Statistiques
+- **Accès** : Bouton  dans l'en-tête de la liste
+- **Graphiques** : Répartition lus/non lus et favoris
+- **Métriques** : Total, moyenne des notes, favoris
+
+### OpenLibrary
+- Recherche automatique lors de l'ouverture d'un livre
+- Affichage du nombre d'éditions référencées
+- Source : API publique OpenLibrary.org
 
 ## API
 
@@ -168,3 +202,16 @@ La navigation est configurée dans `src/navigation/AppNavigator.js`.
 
 ### Styles
 Le thème global assure la cohérence visuelle de l'application.
+
+### Context API
+Le thème clair/sombre est géré via React Context pour une application globale.
+
+### Stockage local
+AsyncStorage est utilisé pour la persistance des données et des préférences utilisateur.
+
+##  Objectifs atteints
+
+- Base solide CRUD  
+- Intermédiaire avec notes et favoris  
+ - Avancé avec rating, recherche et images  
+ - Challenge complet
